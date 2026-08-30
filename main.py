@@ -31,13 +31,13 @@ class DPGNTrainer(object):
         :param best_step: starting step (step at best eval acc or 0 if starts from scratch)
         """
 
-        self.arg = arg
-        self.config = config
-        self.train_opt = config['train_config']
-        self.eval_opt = config['eval_config']
+        self.arg = arg  # 当前轮次相关参数
+        self.config = config  # 训练相关参数
+        self.train_opt = config['train_config']  # 训练参数
+        self.eval_opt = config['eval_config']  # 测试验证参数
 
         # initialize variables
-        self.tensors = allocate_tensors()
+        self.tensors = allocate_tensors()  # 初始化训练参数
         for key, tensor in self.tensors.items():
             self.tensors[key] = tensor.to(self.arg.device)
 
@@ -88,7 +88,7 @@ class DPGNTrainer(object):
         # main training loop, batch size is the number of tasks
         for iteration, batch in enumerate(self.data_loader['train']()):
             # init grad
-            self.optimizer.zero_grad()
+            self.optimizer.zero_grad()  # 梯度清零
 
             # set current step
             self.global_step += 1
@@ -96,11 +96,11 @@ class DPGNTrainer(object):
             # initialize nodes and edges for dual graph model
             support_data, support_que, support_label, query_data, query_que, query_label, all_data, all_que, \
             all_label_in_edge, node_feature_gd, all_vinvl, all_cls = initialize_nodes_edges(batch,
-                                                                      num_supports,
-                                                                      self.tensors,
-                                                                      self.train_opt['batch_size'],
-                                                                      self.train_opt['num_queries'],
-                                                                      self.train_opt['num_ways'],
+                                                                      num_supports,  # 5
+                                                                      self.tensors,  # 初始化的 训练参数
+                                                                      self.train_opt['batch_size'],   # 25
+                                                                      self.train_opt['num_queries'],  # 1
+                                                                      self.train_opt['num_ways'],     # 5
                                                                       self.arg.device)
 
             # set as train mode
@@ -126,15 +126,15 @@ class DPGNTrainer(object):
 
             # compute loss
             total_loss, query_node_cls_acc_generations, query_edge_loss_generations = \
-                self.compute_train_loss_pred(all_label_in_edge,
-                                             point_similarity,
-                                             node_similarity_l2,
-                                             query_edge_mask,
-                                             evaluation_mask,
-                                             num_supports,
-                                             support_label,
-                                             query_label,
-                                             distribution_similarities,
+                self.compute_train_loss_pred(all_label_in_edge,   # [25,10,10]
+                                             point_similarity,    # 6个 [25,10,10]
+                                             node_similarity_l2,  # 6个 [25,10,10]
+                                             query_edge_mask,     # [25,10,10]
+                                             evaluation_mask,     # [25,10,10]
+                                             num_supports,        # 5
+                                             support_label,       # [25,5]
+                                             query_label,         # [25,5]
+                                             distribution_similarities, # 6个 [25,10,10]
                                              yuyi_edge_similarities)
 
 
@@ -469,8 +469,8 @@ def main():
 
     # Set train and test datasets and the corresponding data loaders
     config = imp.load_source("", config_file).config
-    train_opt = config['train_config']
-    eval_opt = config['eval_config']
+    train_opt = config['train_config']   # 训练的设置参数
+    eval_opt = config['eval_config']     # 测试的设置参数
 
     args_opt.exp_name = '{}way_{}shot_{}_{}'.format(train_opt['num_ways'],
                                                     train_opt['num_shots'],
@@ -512,23 +512,23 @@ def main():
     # dataset_test = dataset(root=args_opt.dataset_root, category=config['dataset_name'], partition='test_fpait', token_to_ix=dataset_train.token_to_ix)
 
     train_loader = DataLoader(dataset_train,
-                              num_tasks=train_opt['batch_size'],
-                              num_ways=train_opt['num_ways'],
-                              num_shots=train_opt['num_shots'],
-                              num_queries=train_opt['num_queries'],
-                              epoch_size=train_opt['iteration'])
+                              num_tasks=train_opt['batch_size'],  # 25
+                              num_ways=train_opt['num_ways'],     # 5
+                              num_shots=train_opt['num_shots'],   # 1
+                              num_queries=train_opt['num_queries'],  # 1
+                              epoch_size=train_opt['iteration'])  # 100000
     # valid_loader = DataLoader(dataset_valid,
-    #                           num_tasks=eval_opt['batch_size'],
-    #                           num_ways=eval_opt['num_ways'],
-    #                           num_shots=eval_opt['num_shots'],
-    #                           num_queries=eval_opt['num_queries'],
-    #                           epoch_size=eval_opt['iteration'])
+    #                           num_tasks=eval_opt['batch_size'],  # 10
+    #                           num_ways=eval_opt['num_ways'],     # 5
+    #                           num_shots=eval_opt['num_shots'],   # 1
+    #                           num_queries=eval_opt['num_queries'],  # 1
+    #                           epoch_size=eval_opt['iteration'])  # 1000
     test_loader = DataLoader(dataset_test,
-                             num_tasks=eval_opt['batch_size'],
-                             num_ways=eval_opt['num_ways'],
-                             num_shots=eval_opt['num_shots'],
-                             num_queries=eval_opt['num_queries'],
-                             epoch_size=eval_opt['iteration'])
+                             num_tasks=eval_opt['batch_size'],   # 10
+                             num_ways=eval_opt['num_ways'],      # 5
+                             num_shots=eval_opt['num_shots'],    # 1
+                             num_queries=eval_opt['num_queries'],  # 1
+                             epoch_size=eval_opt['iteration'])   # 1000
 
     data_loader = {'train': train_loader,
                 #    'val': valid_loader,
@@ -547,19 +547,19 @@ def main():
                     'convnet or resnet12.'.format(config['backbone']))
         exit()
 
-
+    # 创建DPGN模块
     que_enc = Question_Encoder(dataset_train.pretrained_emb, dataset_train.token_size)
     cls_enc = Cls_Encoder(dataset_train.pretrained_emb, dataset_train.token_size)
 
-    gnn_module = DPGN(config['num_generation'],
-                      train_opt['dropout'],
-                      train_opt['num_ways'],
-                      train_opt['num_shots'],
-                      train_opt['num_ways'] * train_opt['num_shots'],
-                      train_opt['num_ways'] * train_opt['num_shots'] + train_opt['num_ways'],
-                      train_opt['loss_indicator'],
-                      config['point_distance_metric'],
-                      config['distribution_distance_metric']
+    gnn_module = DPGN(config['num_generation'],  # 6
+                      train_opt['dropout'],      # 0.1
+                      train_opt['num_ways'],  # 5
+                      train_opt['num_shots'],  # 1/5
+                      train_opt['num_ways'] * train_opt['num_shots'],  # 5 * 1
+                      train_opt['num_ways'] * train_opt['num_shots'] + train_opt['num_ways'],  # 5*1 + 5*1
+                      train_opt['loss_indicator'],  # [1,1,0]
+                      config['point_distance_metric'],  # 'l2'
+                      config['distribution_distance_metric']   # 'l2'
                       )
 
     # multi-gpu configuration
@@ -595,10 +595,10 @@ def main():
 
 
     # create trainer
-    trainer = DPGNTrainer(enc_module=enc_module,
-                           gnn_module=gnn_module,
+    trainer = DPGNTrainer(enc_module=enc_module,  # encoder
+                           gnn_module=gnn_module,  # DPGN
                            que_enc=que_enc,
-                           data_loader=data_loader,
+                           data_loader=data_loader,  # data_loader
                            log=logger,
                            arg=args_opt,
                            config=config,

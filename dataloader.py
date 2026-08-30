@@ -16,7 +16,7 @@ import torch
 import torch.utils.data as data
 import torchvision.transforms as transforms
 import torchnet as tnt
-import en_vectors_web_lg
+import en_core_web_lg
 import warnings
 import glob
 warnings.filterwarnings('ignore')
@@ -303,7 +303,7 @@ def tokenize(total_words, use_glove=True):
 
     spacy_tool = None
     if use_glove:
-        spacy_tool = en_vectors_web_lg.load()
+        spacy_tool = en_core_web_lg.load()
         pretrained_emb.append(spacy_tool('PAD').vector)
         pretrained_emb.append(spacy_tool('UNK').vector)
 
@@ -328,7 +328,7 @@ def tokenize_class(total_words, ix, emb, use_glove=True):
 
     spacy_tool = None
     if use_glove:
-        spacy_tool = en_vectors_web_lg.load()
+        spacy_tool = en_core_web_lg.load()
 
     for word in total_words:
         word = word.replace(" ","")
@@ -394,10 +394,3 @@ if __name__ == '__main__':
     for epoch in range(0, 3):
         for idx, batch in enumerate(dloader_train(epoch)):
             print("epoch: ", epoch, "iter: ", idx)
-
-
-
-
-
-
-

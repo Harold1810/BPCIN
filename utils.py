@@ -3,7 +3,7 @@ import logging
 import torch
 import shutil
 
-
+# 初始化 训练参数
 def allocate_tensors():
     """
     init data tensors
@@ -24,7 +24,7 @@ def allocate_tensors():
 
     return tensors
 
-
+# 将 初始化参数 赋值给 需要训练的参数
 def set_tensors(tensors, batch):
     """
     set data to initialized tensors
@@ -89,7 +89,7 @@ def adjust_learning_rate(optimizers, lr, iteration, dec_lr_step, lr_adj_base):
         for param_group in optimizer.param_groups:
             param_group['lr'] = new_lr
 
-
+# 将标签转换为边信息
 def label2edge(label, device):
     """
     convert ground truth labels into ground truth edges
@@ -117,7 +117,7 @@ def one_hot_encode(num_classes, class_idx, device):
     """
     return torch.eye(num_classes)[class_idx.cpu()].to(device)
 
-
+# 生成 support 与 query 的 mask
 def preprocessing(num_ways, num_shots, num_queries, batch_size, device):
     """
     prepare for train and evaluation
@@ -136,24 +136,24 @@ def preprocessing(num_ways, num_shots, num_queries, batch_size, device):
     num_samples = num_supports + num_queries * num_ways # 5 + 1*5
 
     # set edge mask (to distinguish support and query edges)
-    support_edge_mask = torch.zeros(batch_size, num_samples, num_samples).to(device)
-    support_edge_mask[:, :num_supports, :num_supports] = 1
+    support_edge_mask = torch.zeros(batch_size, num_samples, num_samples).to(device)  # (25,10,10)
+    support_edge_mask[:, :num_supports, :num_supports] = 1  # 就是四等分 10*10的矩阵 左上角全部都是1
     # print(support_edge_mask)
-    query_edge_mask = 1 - support_edge_mask
-    evaluation_mask = torch.ones(batch_size, num_samples, num_samples).to(device)
+    query_edge_mask = 1 - support_edge_mask  # 与 support_edge_mask 正好相反
+    evaluation_mask = torch.ones(batch_size, num_samples, num_samples).to(device)  # eval 全1
 
     return num_supports, num_samples, query_edge_mask, evaluation_mask
 
-
+# 初始化 边的权重
 def initialize_nodes_edges(batch, num_supports, tensors, batch_size, num_queries, num_ways, device):
     # allocate data in this batch to specific variables
     set_tensors(tensors, batch)
-    support_data = tensors['support_data'].squeeze(0)
+    support_data = tensors['support_data'].squeeze(0)    # [25,5,3,84,84]
     support_que = tensors['support_que'].squeeze(0)
-    support_label = tensors['support_label'].squeeze(0)
-    query_data = tensors['query_data'].squeeze(0)
+    support_label = tensors['support_label'].squeeze(0)  # [25,5]
+    query_data = tensors['query_data'].squeeze(0)        # [25,5,3,84,84]
     query_que = tensors['query_que'].squeeze(0)
-    query_label = tensors['query_label'].squeeze(0)
+    query_label = tensors['query_label'].squeeze(0)      # [25,5]
     support_vinvl = tensors['support_vinvl'].squeeze(0)
     query_vinvl = tensors['query_vinvl'].squeeze(0)
     support_cls = tensors['support_cls'].squeeze(0)
@@ -161,16 +161,16 @@ def initialize_nodes_edges(batch, num_supports, tensors, batch_size, num_queries
     # task_vectors = tensors['task_vectors'].squeeze(0)
 
     # initialize nodes of distribution graph
-    node_gd_init_support = label2edge(support_label, device)
+    node_gd_init_support = label2edge(support_label, device)  # [25,5,5] 这里其实就是25个 5*5 的单位矩阵  初始化 support 对应的distribution点
     node_gd_init_query = (torch.ones([batch_size, num_queries * num_ways, num_supports])
-                          * torch.tensor(1. / num_supports)).to(device)
-    node_feature_gd = torch.cat([node_gd_init_support, node_gd_init_query], dim=1)
-
+                          * torch.tensor(1. / num_supports)).to(device)  # [25,5,5] 初始化 query 对应 的distribution 点
+    node_feature_gd = torch.cat([node_gd_init_support, node_gd_init_query], dim=1)  # [25,10,5]  可能是因为只需要判断每个顶点与 support的关系
+                                                                                    # 所以这里只是10*5 而不是 10*10
     # initialize edges of point graph
-    all_data = torch.cat([support_data, query_data], 1)
-    all_que = torch.cat([support_que, query_que], 1)
-    all_label = torch.cat([support_label, query_label], 1)
-    all_label_in_edge = label2edge(all_label, device)
+    all_data = torch.cat([support_data, query_data], 1)  # [25,10,3,84,84]
+    all_que = torch.cat([support_que, query_que], 1)  # [25,10,15]
+    all_label = torch.cat([support_label, query_label], 1)  # [25,10]
+    all_label_in_edge = label2edge(all_label, device)  # [25,10,10]  单位阵
 
     all_vinvl = torch.cat([support_vinvl, query_vinvl], 1)
     all_cls = torch.cat([support_cls, query_cls], 1)
@@ -178,7 +178,7 @@ def initialize_nodes_edges(batch, num_supports, tensors, batch_size, num_queries
     return support_data, support_que, support_label, query_data, query_que, query_label, all_data, all_que, all_label_in_edge, \
            node_feature_gd, all_vinvl, all_cls
 
-
+# 提取特征
 def backbone_two_stage_initialization(full_data, encoder):
     """
     encode raw data by backbone network
@@ -192,14 +192,14 @@ def backbone_two_stage_initialization(full_data, encoder):
     second_last_layer_data_temp = []
     for data in full_data.chunk(full_data.size(1), dim=1):
         # the encode step  data:[25,1,3,84,84]
-        encoded_result = encoder(data.squeeze(1))
+        encoded_result = encoder(data.squeeze(1))  # 两个 [25,128]  coco:[10,128] 最后一层和倒数第二层特征
         # prepare for two stage initialization of DPGN
         last_layer_data_temp.append(encoded_result[0])
         second_last_layer_data_temp.append(encoded_result[1])
     # last_layer_data: (batch_size, num_samples, embedding dimension)
-    last_layer_data = torch.stack(last_layer_data_temp, dim=1)
+    last_layer_data = torch.stack(last_layer_data_temp, dim=1)  # [25,10,128] 将temp里的特征在新的维度拼接在一起
     # second_last_layer_data: (batch_size, num_samples, embedding dimension)
-    second_last_layer_data = torch.stack(second_last_layer_data_temp, dim=1)
+    second_last_layer_data = torch.stack(second_last_layer_data_temp, dim=1)  # [25,10,128]
     return last_layer_data, second_last_layer_data
 
 
