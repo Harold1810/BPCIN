@@ -1,0 +1,32 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+.env
+
+# IDE files
+.vscode/
+.idea/
+
+# Training outputs
+checkpoints/
+*_checkpoints/
+fpait_checkpoints/
+logs/
+*_logs/
+fpait_logs/
+*.pth.tar
+
+# Large dataset files
+data/COCO/
+data/vinvl/
+data/predict_vinvl.npy
+
+# System files
+.DS_Store
+Thumbs.db
